@@ -1,0 +1,202 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  PLAYER
+  VENUE_OWNER
+}
+
+enum MatchStatus {
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum SportType {
+  FOOTBALL
+  FUTSAL
+  BASKETBALL
+  BADMINTON
+  CRICKET
+  VOLLEYBALL
+}
+
+enum CreatorType {
+  TEAM
+  INDIVIDUAL
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  PROFESSIONAL
+}
+
+enum RequestStatus {
+  OPEN
+  MATCHED
+  CANCELLED
+}
+
+enum ChallengeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model User {
+  id                   String   @id @default(uuid())
+  email                String   @unique
+  passwordHash         String
+  name                 String
+  phone                String?
+  location             String?
+  bio                  String?
+  role                 Role     @default(PLAYER)
+  isProMember          Boolean  @default(false)
+  rewardPoints         Int      @default(0)
+  profileCompletionPct Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Opposite relations
+  teamsCaptained Team[]    @relation("TeamCaptain")
+  teams          Team[]    @relation("TeamMembers")
+  venuesOwned    Venue[]   @relation("VenueOwner")
+  bookings       Booking[]
+
+  @@map("users")
+}
+
+model Team {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  logoUrl       String?
+  isVerified    Boolean  @default(false)
+  captainId     String
+  captain       User     @relation("TeamCaptain", fields: [captainId], references: [id])
+  members       User[]   @relation("TeamMembers")
+  rating        Float    @default(0.0)
+  matchesPlayed Int       @default(0)
+  winRate       Float     @default(0.0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  homeMatches   Match[]   @relation("HomeMatches")
+  awayMatches   Match[]   @relation("AwayMatches")
+  bookings      Booking[]
+
+  @@map("teams")
+}
+
+model Venue {
+  id           String      @id @default(uuid())
+  ownerId      String
+  owner        User        @relation("VenueOwner", fields: [ownerId], references: [id])
+  name         String
+  location     String
+  latitude     Float?
+  longitude    Float?
+  sportTypes   SportType[]
+  images       String[]
+  pricePerHour Float?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  matches      Match[]
+  bookings     Booking[]
+  matchRequests MatchRequest[]
+
+  @@map("venues")
+}
+
+model Match {
+  id          String      @id @default(uuid())
+  homeTeamId  String
+  homeTeam    Team        @relation("HomeMatches", fields: [homeTeamId], references: [id])
+  awayTeamId  String
+  awayTeam    Team        @relation("AwayMatches", fields: [awayTeamId], references: [id])
+  venueId     String?
+  venue       Venue?      @relation(fields: [venueId], references: [id])
+  status      MatchStatus @default(SCHEDULED)
+  homeScore   String?
+  awayScore   String?
+  scheduledAt DateTime
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  booking     Booking?
+
+  @@map("matches")
+}
+
+model Booking {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  venueId    String
+  venue      Venue     @relation(fields: [venueId], references: [id])
+  teamId     String?
+  team       Team?     @relation(fields: [teamId], references: [id])
+  matchId    String?   @unique
+  match      Match?    @relation(fields: [matchId], references: [id])
+  sportType  SportType
+  startTime  DateTime
+  endTime    DateTime
+  totalPrice Float
+  isPaid     Boolean   @default(false)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("bookings")
+}
+
+model MatchRequest {
+  id               String        @id @default(uuid())
+  creatorType      CreatorType
+  creatorId        String        // Can be a UserId or TeamId based on creatorType
+  sportType        SportType
+  gameMode         String
+  skillLevel       SkillLevel
+  preferredLocation String
+  scheduledAt      DateTime
+  venueId          String?
+  venue            Venue?        @relation(fields: [venueId], references: [id])
+  isUrgent         Boolean       @default(false)
+  notes            String?
+  status           RequestStatus @default(OPEN)
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  challenges       Challenge[]
+
+  @@map("match_requests")
+}
+
+model Challenge {
+  id              String          @id @default(uuid())
+  matchRequestId  String
+  matchRequest    MatchRequest    @relation(fields: [matchRequestId], references: [id])
+  challengerType  CreatorType
+  challengerId    String          // Can be a UserId or TeamId based on challengerType
+  status          ChallengeStatus @default(PENDING)
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("challenges")
+}
