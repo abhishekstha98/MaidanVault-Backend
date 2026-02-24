@@ -1,6 +1,23 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: maidanvault-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Hello@123
+      POSTGRES_DB: maidanvault
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d maidanvault" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   redis:
     image: redis:alpine
     container_name: maidanvault-redis
@@ -11,5 +28,24 @@ services:
     restart: unless-stopped
     command: redis-server --save 60 1 --loglevel warning
 
+  api:
+    build: .
+    container_name: maidanvault-api
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:Hello@123@postgres:5432/maidanvault?schema=public
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+      - PORT=3000
+      - ACCESS_TOKEN_SECRET=safe_production_access_key
+      - REFRESH_TOKEN_SECRET=safe_production_refresh_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
 volumes:
+  pgdata:
   redis_data:

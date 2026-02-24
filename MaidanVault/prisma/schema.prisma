@@ -55,6 +55,18 @@ enum ChallengeStatus {
   DECLINED
 }
 
+enum TournamentStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id                   String   @id @default(uuid())
   email                String   @unique
@@ -66,6 +78,8 @@ model User {
   role                 Role     @default(PLAYER)
   isProMember          Boolean  @default(false)
   rewardPoints         Int      @default(0)
+  matchesPlayed        Int      @default(0)
+  winRate              Float    @default(0.0)
   profileCompletionPct Int      @default(0)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -88,14 +102,16 @@ model Team {
   captain       User     @relation("TeamCaptain", fields: [captainId], references: [id])
   members       User[]   @relation("TeamMembers")
   rating        Float    @default(0.0)
-  matchesPlayed Int       @default(0)
-  winRate       Float     @default(0.0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  matchesPlayed Int      @default(0)
+  winRate       Float    @default(0.0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  homeMatches   Match[]   @relation("HomeMatches")
-  awayMatches   Match[]   @relation("AwayMatches")
-  bookings      Booking[]
+  homeMatches Match[]   @relation("HomeMatches")
+  awayMatches Match[]   @relation("AwayMatches")
+  bookings    Booking[]
+
+  tournamentRegistrations TournamentRegistration[]
 
   @@map("teams")
 }
@@ -114,8 +130,8 @@ model Venue {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  matches      Match[]
-  bookings     Booking[]
+  matches       Match[]
+  bookings      Booking[]
   matchRequests MatchRequest[]
 
   @@map("venues")
@@ -134,10 +150,10 @@ model Match {
   awayScore   String?
   scheduledAt DateTime
 
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  booking     Booking?
+  booking Booking?
 
   @@map("matches")
 }
@@ -158,45 +174,94 @@ model Booking {
   totalPrice Float
   isPaid     Boolean   @default(false)
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("bookings")
 }
 
 model MatchRequest {
-  id               String        @id @default(uuid())
-  creatorType      CreatorType
-  creatorId        String        // Can be a UserId or TeamId based on creatorType
-  sportType        SportType
-  gameMode         String
-  skillLevel       SkillLevel
+  id                String        @id @default(uuid())
+  creatorType       CreatorType
+  creatorId         String // Can be a UserId or TeamId based on creatorType
+  sportType         SportType
+  gameMode          String
+  skillLevel        SkillLevel
   preferredLocation String
-  scheduledAt      DateTime
-  venueId          String?
-  venue            Venue?        @relation(fields: [venueId], references: [id])
-  isUrgent         Boolean       @default(false)
-  notes            String?
-  status           RequestStatus @default(OPEN)
+  scheduledAt       DateTime
+  venueId           String?
+  venue             Venue?        @relation(fields: [venueId], references: [id])
+  isUrgent          Boolean       @default(false)
+  notes             String?
+  status            RequestStatus @default(OPEN)
 
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  challenges       Challenge[]
+  challenges Challenge[]
 
   @@map("match_requests")
 }
 
 model Challenge {
-  id              String          @id @default(uuid())
-  matchRequestId  String
-  matchRequest    MatchRequest    @relation(fields: [matchRequestId], references: [id])
-  challengerType  CreatorType
-  challengerId    String          // Can be a UserId or TeamId based on challengerType
-  status          ChallengeStatus @default(PENDING)
+  id             String          @id @default(uuid())
+  matchRequestId String
+  matchRequest   MatchRequest    @relation(fields: [matchRequestId], references: [id])
+  challengerType CreatorType
+  challengerId   String // Can be a UserId or TeamId based on challengerType
+  status         ChallengeStatus @default(PENDING)
 
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("challenges")
+}
+
+model Tournament {
+  id        String           @id @default(uuid())
+  name      String           @unique
+  sportType SportType
+  entryFee  Float
+  prizePool Float
+  startDate DateTime
+  endDate   DateTime
+  status    TournamentStatus @default(UPCOMING)
+  maxTeams  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  registrations TournamentRegistration[]
+
+  @@map("tournaments")
+}
+
+model TournamentRegistration {
+  id            String        @id @default(uuid())
+  tournamentId  String
+  tournament    Tournament    @relation(fields: [tournamentId], references: [id])
+  teamId        String
+  team          Team          @relation(fields: [teamId], references: [id])
+  paymentStatus PaymentStatus @default(PENDING)
+  roster        String[] // Array of User IDs playing
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tournamentId, teamId])
+  @@map("tournament_registrations")
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  matchId     String?
+  challengeId String?
+  senderId    String
+  content     String
+  readReceipt Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([matchId])
+  @@index([challengeId])
+  @@map("messages")
 }

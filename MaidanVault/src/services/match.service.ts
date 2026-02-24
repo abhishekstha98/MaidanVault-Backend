@@ -105,11 +105,81 @@ export class MatchService {
         });
 
         // Fire & Forget recalculation of team statistics
-        // In a real application, you might do this via a Queue or event bus
+        // Fire & Forget recalculation of team statistics
         await this.recalculateTeamStats(match.homeTeamId);
         await this.recalculateTeamStats(match.awayTeamId);
 
+        // Gamification Engine: Determine winner and calculate individual user rewards
+        const homeVal = match.homeScore ? parseInt(String(match.homeScore)) : 0;
+        const awayVal = match.awayScore ? parseInt(String(match.awayScore)) : 0;
+        const homeWon = homeVal > awayVal;
+        const awayWon = awayVal > homeVal;
+
+        await this.recalculateUserGamification(match.homeTeamId, homeWon);
+        await this.recalculateUserGamification(match.awayTeamId, awayWon);
+
         return updatedMatch;
+    }
+
+    /**
+     * Gamification Engine hook for recalculating individual User statistics
+     */
+    private async recalculateUserGamification(teamId: string, isWinner: boolean) {
+        // Fetch all members of the team
+        const team = await prisma.team.findUnique({
+            where: { id: teamId },
+            include: { members: { select: { id: true } } }
+        });
+
+        if (!team) return;
+
+        const pointsToAward = isWinner ? 15 : 5; // 15 points for a win, 5 for participation
+
+        for (const member of team.members) {
+            // Find total matches played by this user across *all* their teams
+            const userTeams = await prisma.team.findMany({
+                where: { members: { some: { id: member.id } } },
+                select: { id: true }
+            });
+            const userTeamIds = userTeams.map(t => t.id);
+
+            const allUserMatches = await prisma.match.findMany({
+                where: {
+                    OR: [
+                        { homeTeamId: { in: userTeamIds } },
+                        { awayTeamId: { in: userTeamIds } }
+                    ],
+                    status: "COMPLETED"
+                },
+                select: { homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true }
+            });
+
+            const totalPlayed = allUserMatches.length;
+            if (totalPlayed === 0) continue;
+
+            let userWins = 0;
+            for (const m of allUserMatches) {
+                const hVal = m.homeScore ? parseInt(String(m.homeScore)) : 0;
+                const aVal = m.awayScore ? parseInt(String(m.awayScore)) : 0;
+
+                const userWasHome = userTeamIds.includes(m.homeTeamId);
+                const userWasAway = userTeamIds.includes(m.awayTeamId);
+
+                if (userWasHome && hVal > aVal) userWins++;
+                else if (userWasAway && aVal > hVal) userWins++;
+            }
+
+            const winRate = Number((userWins / totalPlayed).toFixed(2));
+
+            await prisma.user.update({
+                where: { id: member.id },
+                data: {
+                    matchesPlayed: totalPlayed,
+                    winRate,
+                    rewardPoints: { increment: pointsToAward }
+                }
+            });
+        }
     }
 
     /**

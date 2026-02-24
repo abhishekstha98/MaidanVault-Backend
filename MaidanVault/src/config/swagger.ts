@@ -21,6 +21,7 @@ import { createBookingSchema } from "../validators/booking.validator";
 import { createMatchSchema, updateMatchScoreSchema } from "../validators/match.validator";
 import { createMatchRequestSchema, updateMatchRequestStatusSchema } from "../validators/match-request.validator";
 import { createChallengeSchema, updateChallengeStatusSchema } from "../validators/challenge.validator";
+import { createTournamentSchema, registerTournamentSchema } from "../validators/tournament.validator";
 
 // Central Registration of Components to keep Router YAML concise
 registry.register("RegisterInput", registerSchema);
@@ -35,6 +36,8 @@ registry.register("CreateMatchRequestInput", createMatchRequestSchema);
 registry.register("UpdateMatchRequestStatusInput", updateMatchRequestStatusSchema);
 registry.register("CreateChallengeInput", createChallengeSchema);
 registry.register("UpdateChallengeStatusInput", updateChallengeStatusSchema);
+registry.register("CreateTournamentInput", createTournamentSchema);
+registry.register("RegisterTournamentInput", registerTournamentSchema);
 
 // Generate Document structures to feed into swaggerJsDoc
 const generator = new OpenApiGeneratorV3(registry.definitions);
